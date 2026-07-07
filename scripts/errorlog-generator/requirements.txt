@@ -1,0 +1,6 @@
+# Error Log Generator Dependencies
+# Add your project dependencies here
+
+# Example:
+# requests>=2.28.0
+# python-dotenv>=0.20.0
