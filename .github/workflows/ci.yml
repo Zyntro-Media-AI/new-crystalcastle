@@ -1,0 +1,114 @@
+name: CrystalCastle CI/CD
+
+on:
+  push:
+    branches:
+  pull_request:
+    branches:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run type-check
+
+      - name: Unit Test
+        run: npm test -- --coverage
+
+      - name: Build
+        run: npm run build
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+      - uses: github/codeql-action/analyze@v3
+
+  deploy-preview:
+    name: Deploy Preview
+    needs: lint-test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: deploy
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+
+  deploy-staging:
+    name: Deploy Staging
+    needs: [lint-test, codeql]
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging-crystalcastle.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--env=staging'
+          alias-domains: staging-crystalcastle.vercel.app
+
+      - name: Update Audit Trail
+        run: |
+          echo "$(date -Iseconds) | STAGING | Deploy commit ${{ github.sha }} | EN: Staging deployment success | TH: ดีพลอย staging สำเร็จ" >> logs/audit.md
+
+  deploy-production:
+    name: Deploy Production
+    needs: [lint-test, codeql]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://crystalcastle.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+
+      - name: Permissions Revert + Audit
+        run: |
+          echo "$(date -Iseconds) | PROD | Deploy commit ${{ github.sha }} | EN: Production release + permissions revert to read-all | TH: ขึ้นโปรดักชัน + คืนสิทธิ์เป็น read-all" >> logs/audit.md
+          # ใส่ script revert permission ของคุณตรงนี้
+          # node scripts/permissions-revert.js --mode=read-all
