@@ -21,6 +21,7 @@ docs/
 ---
 
 🔑 Best Practices
+
 - CHANGELOG.md → auto-generate using GitHub Actions or semantic-release.  
 - SECURITY.md → include how to report vulnerabilities (e.g., via GitHub Security Advisories).  
 - WORKFLOW.md → document how AutoMerge + CodeRabbit reviews are enforced.  
