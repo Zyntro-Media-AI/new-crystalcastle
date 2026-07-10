@@ -1,1 +1,0 @@
-- run: echo "${{ steps.ai.outputs.result }}" > ${{ steps.ai.outputs.result }}
