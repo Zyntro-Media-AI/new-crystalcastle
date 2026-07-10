@@ -1,0 +1,147 @@
+# CodeRabbit Configuration — Zyntro Media AI
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# วางไฟล์นี้ที่ root ของทุก repo ใน Zyntro-Media-AI org
+
+language: "th"  # ภาษาของ review comments
+
+early_access: false
+
+reviews:
+  # ────────────────────────────────────────────
+  # PROFILE
+  # ────────────────────────────────────────────
+  profile: "chill"         # assertive | chill — ไม่ nitpick เรื่องเล็กน้อย
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+
+  # ────────────────────────────────────────────
+  # AUTO REVIEW TRIGGERS
+  # ────────────────────────────────────────────
+  auto_review:
+    enabled: true
+    drafts: false           # ไม่ review draft PRs
+    base_branches:
+      - "main"
+      - "develop"
+      - "staging"
+
+  # ────────────────────────────────────────────
+  # PATH FILTERS — ไม่ review ไฟล์เหล่านี้
+  # ────────────────────────────────────────────
+  path_filters:
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/yarn.lock"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/node_modules/**"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/coverage/**"
+    - "!**/__snapshots__/**"
+    - "!**/migrations/**"    # Supabase migrations — ใช้ supabase db diff
+    - "!**/public/**"
+
+  # ────────────────────────────────────────────
+  # PATH INSTRUCTIONS — กฎเฉพาะแต่ละโฟลเดอร์
+  # ────────────────────────────────────────────
+  path_instructions:
+    - path: "app/**"
+      instructions: |
+        - ตรวจสอบว่าใช้ Next.js App Router เท่านั้น ห้ามมี pages/ patterns
+        - Server Components เป็น default — "use client" ต้องมีเหตุผลชัดเจน
+        - Route Handlers ต้องมี input validation ด้วย Zod
+        - ห้าม fetch จาก client ตรงไปยัง Supabase โดยไม่ผ่าน server action หรือ API route
+
+    - path: "app/api/**"
+      instructions: |
+        - ทุก Route Handler ต้องมี try/catch และ return NextResponse ที่มี status code ชัดเจน
+        - ต้องมี request validation ก่อน business logic เสมอ
+        - ห้าม return raw error objects ไปยัง client
+
+    - path: "lib/groq/**"
+      instructions: |
+        - ทุก Groq call ต้องกำหนด model จาก lib/ai/models.ts เท่านั้น ห้าม hardcode model string
+        - ต้องกำหนด max_tokens และ temperature ทุกครั้ง
+        - ต้อง log provider, model, latency, และ token_usage (ห้าม log PII)
+        - ต้อง wrap ใน Result<T, Error> pattern
+
+    - path: "lib/supabase/**"
+      instructions: |
+        - SUPABASE_SERVICE_ROLE_KEY ห้ามอยู่ใน client-side code เด็ดขาด
+        - ทุก query ต้องมี .returns<Type>() annotation
+        - ต้อง handle error ก่อน access data เสมอ
+
+    - path: "components/**"
+      instructions: |
+        - Component ต้องไม่เกิน 200 บรรทัด
+        - ห้าม fetch data โดยตรงจาก component — ใช้ props หรือ server component แทน
+        - ห้าม inline style เว้นแต่เป็น dynamic value ที่ Tailwind รองรับไม่ได้
+
+    - path: "**/*.test.ts"
+      instructions: |
+        - ตรวจสอบว่า mock Supabase และ Groq clients เสมอ ห้าม call real API
+        - ทุก exported function ต้องมี test อย่างน้อย 1 case
+        - ใช้ Vitest เท่านั้น ห้าม import จาก jest
+
+    - path: ".github/workflows/**"
+      instructions: |
+        - ตรวจสอบ job order: lint → type-check → test → build
+        - ทุก secret ต้องใช้ ${{ secrets.NAME }} ห้าม hardcode
+        - ต้องมี actions/cache สำหรับ node_modules
+
+    - path: "**/*.env*"
+      instructions: |
+        - ห้าม commit ค่า secret จริง — .env.example เท่านั้น
+        - ทุก var ต้องมี comment อธิบายการใช้งาน
+
+  # ────────────────────────────────────────────
+  # REVIEW INSTRUCTIONS (global)
+  # ────────────────────────────────────────────
+  instructions: |
+    คุณเป็น senior TypeScript engineer ที่เชี่ยวชาญ Next.js App Router, Supabase, และ AI pipelines
+    ให้ review code ด้วยภาษาไทย และยึดหลักการต่อไปนี้:
+
+    **ให้ flag เป็น critical issues:**
+    - การ expose service role key หรือ API key ใน client-side code
+    - ไม่มี error handling บน Supabase queries หรือ AI API calls
+    - การใช้ `any` โดยไม่มี comment อธิบาย
+    - `console.log` ใน production code (ควรใช้ lib/logger.ts)
+    - floating promises (async ที่ไม่ await)
+    - hardcode model ID ใน AI calls
+    - SQL injection risks หรือ unsanitised user input ส่งไปยัง AI prompts
+
+    **ให้ suggest (ไม่ใช่ block):**
+    - Component ที่ยาวเกิน 200 บรรทัด
+    - Function ที่ยาวเกิน 40 บรรทัด
+    - ตัวแปร boolean ที่ไม่ขึ้นต้นด้วย is/has/can/should
+    - Supabase query ที่ไม่มี .returns<Type>() annotation
+
+    **ห้าม flag:**
+    - Tailwind class ordering
+    - การตั้งชื่อ variable ที่ descriptive อยู่แล้ว
+    - Comment ภาษาไทยหรืออังกฤษผสมกัน (org นี้ใช้ได้ทั้งคู่)
+    - Style preferences ที่ไม่ส่งผลต่อ correctness หรือ security
+
+# ────────────────────────────────────────────
+# CHAT — สั่ง Copilot ผ่าน PR comment
+# ────────────────────────────────────────────
+chat:
+  auto_reply: true
+
+# ────────────────────────────────────────────
+# KNOWLEDGE BASE
+# ────────────────────────────────────────────
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: auto   # เรียนรู้ patterns จาก repo นี้อัตโนมัติ
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
