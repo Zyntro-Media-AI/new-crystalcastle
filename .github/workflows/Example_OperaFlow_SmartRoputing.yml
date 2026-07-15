@@ -1,0 +1,25 @@
+name: Operaflow Smart Routing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  route-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Taskflow
+        run: |
+          if [[ $TASK_TYPE == "deploy" ]]; then
+            echo "Routing to CI Operaflow"
+          else
+            echo "Routing to Default Taskflow"
+          fi
+
+  parallel-jobs:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        job: [build, lint, test]
+    steps:
+      - name: Run ${{ matrix.job }}
+        run: ./scripts/${{ matrix.job }}.sh
